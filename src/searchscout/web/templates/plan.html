@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Plan {{ plan.id }}</h1>
+<p class="lede">
+  <b>{{ plan.product_count }}</b> products, <b>{{ plan.total_replacements }}</b> replacements.
+  Nothing has been written yet.
+</p>
+
+{% if over_cap %}
+<div class="notice warn">
+  This plan touches {{ plan.product_count }} products, above the configured cap of {{ cap }}.
+  Applying it will be refused. Narrow the search term.
+</div>
+{% endif %}
+{% if plan.matched_but_unchanged %}
+<div class="notice warn">
+  {{ plan.matched_but_unchanged|length }} products contain the term only inside a tag or
+  attribute. Those are deliberately not edited.
+</div>
+{% endif %}
+
+<div class="panel" style="padding:0">
+  <table>
+    <thead><tr><th>SKU</th><th>Product</th><th>Edits</th><th>Change</th></tr></thead>
+    <tbody>
+      {% for change in plan.changes[:50] %}
+      <tr>
+        <td class="mono">{{ change.sku }}</td>
+        <td>{{ change.product_name }}</td>
+        <td class="mono dim">{{ change.replacements }}</td>
+        <td>
+          {% for before, after in change.fragments[:2] %}
+            <div class="del">{{ before[:90] }}</div>
+            <div class="ins">{{ after[:90] }}</div>
+          {% endfor %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="faint" style="padding:26px;text-align:center">
+        Nothing matches — no changes to apply.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if plan.changes and not over_cap %}
+<form method="post" action="/apply/{{ plan.id }}">
+  <button class="primary" type="submit">Apply {{ plan.product_count }} changes</button>
+  <a href="/" style="margin-left:12px" class="faint">Cancel</a>
+</form>
+{% endif %}
+{% endblock %}

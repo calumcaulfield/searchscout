@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>{{ total }} product{{ '' if total == 1 else 's' }} match “{{ term }}”</h1>
+<p class="lede">
+  Searched <span class="mono">{{ field.replace('_', ' ') }}</span>
+  with <span class="mono">{{ mode }}</span>. Read-only — nothing has changed.
+</p>
+<div class="panel" style="padding:0">
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th>Matched in</th><th>Matches</th><th>Context</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="mono">{{ row.sku }}</td>
+        <td>{{ row.name }}</td>
+        <td>
+          {# Which field produced the context beside it, so the row explains
+             itself rather than leaving the reader to guess. #}
+          <span class="chip">{{ row.matched_in }}</span>
+          {% for extra in row.also %}<span class="chip">{{ extra }}</span>{% endfor %}
+        </td>
+        <td class="mono dim">{{ row.matches }}</td>
+        <td class="dim">{{ row.context[:110] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="faint" style="padding:26px;text-align:center">No matches.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if total > rows|length %}<p class="faint">Showing the first {{ rows|length }} of {{ total }}.</p>{% endif %}
+<p class="faint" style="font-size:11.5px">
+  Bulk replacement edits description content only — a name or SKU match locates a
+  product, it does not make those fields writable.
+</p>
+{% endblock %}

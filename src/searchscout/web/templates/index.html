@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Catalogue content</h1>
+<p class="lede">Search product descriptions, preview a bulk edit, then apply it.
+Nothing is written until you confirm a plan.</p>
+{% if error %}<div class="notice warn">{{ error }}</div>{% endif %}
+
+<form class="panel" method="post" action="/search">
+  <div class="row">
+    <div><label>Search term</label><input name="term" placeholder="cotton" required></div>
+    <div><label>Search in</label>
+      <select name="field">
+        <option value="all">All fields</option>
+        <option value="name">Product name</option>
+        <option value="description">Description</option>
+        <option value="sku">SKU</option>
+      </select>
+    </div>
+    <div><label>Match</label>
+      <select name="mode">
+        <option value="case-insensitive">Case-insensitive</option>
+        <option value="literal">Literal</option>
+        <option value="whole-word">Whole word</option>
+      </select>
+    </div>
+  </div>
+  <div style="margin-top:14px"><button type="submit">Search</button></div>
+  <p class="faint" style="font-size:11.5px;margin:12px 0 0">
+    Search reads the product name, SKU and description. Bulk replacement below
+    only ever edits description content.
+  </p>
+</form>
+
+<form class="panel" method="post" action="/plan">
+  <div class="row">
+    <div><label>Find</label><input name="term" placeholder="cotton" required></div>
+    <div><label>Replace with</label><input name="replacement" placeholder="organic cotton"></div>
+    <div><label>Match</label>
+      <select name="mode">
+        <option value="literal">Literal</option>
+        <option value="case-insensitive">Case-insensitive</option>
+        <option value="whole-word">Whole word</option>
+      </select>
+    </div>
+  </div>
+  <div style="margin-top:14px"><button type="submit">Preview changes</button></div>
+</form>
+{% endblock %}

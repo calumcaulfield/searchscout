@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Applied plan {{ report.plan_id }}</h1>
+<p class="lede">
+  <b>{{ report.updated|length }}</b> products updated{% if report.failed %},
+  <b style="color:var(--danger)">{{ report.failed|length }}</b> failed{% endif %}.
+</p>
+{% if report.rollback_path %}
+<div class="notice">
+  Every change was recorded. To undo it:
+  <code class="mono">scout rollback {{ report.rollback_path }}</code>
+</div>
+{% endif %}
+{% if report.failed %}
+<div class="panel" style="padding:0">
+  <table>
+    <thead><tr><th>SKU</th><th>Error</th></tr></thead>
+    <tbody>
+      {% for sku, error in report.failed %}
+      <tr><td class="mono">{{ sku }}</td><td class="dim">{{ error }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+<p><a href="/">Start another search</a></p>
+{% endblock %}
