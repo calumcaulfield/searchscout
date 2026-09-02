@@ -28,6 +28,12 @@ _PLANS: dict[str, Plan] = {}
 def create_app() -> Flask:
     app = Flask(__name__)
     settings = get_settings()
+    # Keep one catalogue instance for the lifetime of the app. This matters for
+    # the in-memory demo adapter: rebuilding it on every request regenerates the
+    # seeded catalogue, so a successful apply appears to vanish on the very next
+    # search. A long-lived adapter also mirrors how an operator experiences one
+    # catalogue during a web session.
+    catalog = build_catalog(settings)
 
     @app.get("/")
     def index() -> str:
@@ -45,7 +51,6 @@ def create_app() -> Flask:
                 "index.html", adapter=settings.adapter, error="Enter a search term."
             )
 
-        catalog = build_catalog(settings)
         hits = search_products(catalog.iter_products(), term, mode=mode, field=field)
         rows: list[dict[str, Any]] = [
             {
@@ -79,7 +84,7 @@ def create_app() -> Flask:
                 "index.html", adapter=settings.adapter, error="Enter a search term."
             )
 
-        result = plan(build_catalog(settings), term, replacement, match_mode=mode)
+        result = plan(catalog, term, replacement, match_mode=mode)
         _PLANS[result.id] = result
         return render_template(
             "plan.html",
@@ -96,7 +101,7 @@ def create_app() -> Flask:
             return redirect(url_for("index"))
 
         report = apply(
-            build_catalog(settings),
+            catalog,
             stored,
             audit=AuditLog(settings.audit_path),
             rollback_dir=settings.rollback_dir,
