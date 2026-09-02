@@ -79,6 +79,45 @@ class TestApplyRequiresAPreviewedPlan:
         assert client.post(f"/apply/{plan_id}").status_code == 200
         assert client.post(f"/apply/{plan_id}").status_code == 302
 
+    def test_applied_replacement_is_visible_to_the_next_search(self, client) -> None:
+        """Regression: applying in demo mode must not vanish on the next request."""
+        preview = client.post(
+            "/plan",
+            data={
+                "term": "cotton",
+                "replacement": "organic cotton",
+                "mode": "case-insensitive",
+            },
+        )
+        plan_id = preview.data.decode().split("Plan ", 1)[1].split("<", 1)[0].strip()
+
+        applied = client.post(f"/apply/{plan_id}")
+        assert applied.status_code == 200
+
+        replacement = client.post(
+            "/search",
+            data={
+                "term": "organic cotton",
+                "mode": "case-insensitive",
+                "field": "description",
+            },
+        )
+        assert replacement.status_code == 200
+        assert matched_count(replacement) > 0
+
+        # The original standalone term should have been replaced in editable
+        # description text rather than reappearing from a regenerated fixture.
+        original = client.post(
+            "/search",
+            data={
+                "term": "cotton",
+                "mode": "whole-word",
+                "field": "description",
+            },
+        )
+        assert matched_count(original) > 0  # "organic cotton" still contains the word cotton
+        assert b"organic cotton" in replacement.data.lower()
+
 
 class TestSearchScopeInTheUI:
     """The scope selector, end to end through the form."""
