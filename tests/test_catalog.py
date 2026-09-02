@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from helpers import temp_catalog
 from searchscout.catalog.base import CatalogAdapter, CatalogError, ProductNotFoundError
 from searchscout.catalog.demo import DemoCatalog
 from searchscout.catalog.magento import MagentoCatalog
@@ -12,24 +13,63 @@ from searchscout.catalog.magento import MagentoCatalog
 
 class TestDemoCatalog:
     def test_satisfies_the_adapter_protocol(self) -> None:
-        assert isinstance(DemoCatalog(product_count=3), CatalogAdapter)
+        assert isinstance(temp_catalog(product_count=3), CatalogAdapter)
 
     def test_is_deterministic(self) -> None:
         """Screenshots and tests both depend on the same seed producing the same data."""
-        a = DemoCatalog(product_count=20)
-        b = DemoCatalog(product_count=20)
+        a = temp_catalog(product_count=20)
+        b = temp_catalog(product_count=20)
         assert [p.contents for p in a.iter_products()] == [p.contents for p in b.iter_products()]
 
     def test_an_unknown_sku_raises(self) -> None:
         with pytest.raises(ProductNotFoundError):
-            DemoCatalog(product_count=3).get_product("NOPE")
+            temp_catalog(product_count=3).get_product("NOPE")
 
     def test_updates_are_visible_and_recorded(self) -> None:
-        catalog = DemoCatalog(product_count=3)
+        catalog = temp_catalog(product_count=3)
         sku = catalog.iter_products()[0].sku
         catalog.update_contents(sku, "<p>new</p>")
         assert catalog.get_product(sku).contents == "<p>new</p>"
-        assert catalog.writes == [(sku, "<p>new</p>")]
+
+    def test_updates_persist_to_a_new_instance(self) -> None:
+        """The defect this adapter exists to fix.
+
+        The in-memory version accepted a write into an object the request was
+        about to discard, so a second construction saw the original fixture and
+        the application reported a successful update that had gone nowhere.
+        """
+
+        catalog = temp_catalog(product_count=5)
+        sku = catalog.iter_products()[0].sku
+        catalog.update_contents(sku, "<p>persisted across instances</p>")
+
+        reopened = DemoCatalog(catalog.db_path, product_count=5)
+        assert reopened.get_product(sku).contents == "<p>persisted across instances</p>"
+
+    def test_reseeding_is_skipped_when_the_catalogue_has_data(self) -> None:
+
+        catalog = temp_catalog(product_count=5)
+        sku = catalog.iter_products()[0].sku
+        catalog.update_contents(sku, "<p>edited</p>")
+        # Constructing again must not regenerate over an operator's work.
+        assert DemoCatalog(catalog.db_path, product_count=5).get_product(sku).contents == (
+            "<p>edited</p>"
+        )
+
+    def test_reset_returns_the_catalogue_to_its_fixture_state(self) -> None:
+        catalog = temp_catalog(product_count=5)
+        sku = catalog.iter_products()[0].sku
+        original = catalog.get_product(sku).contents
+        catalog.update_contents(sku, "<p>edited</p>")
+        catalog.reset()
+        assert catalog.get_product(sku).contents == original
+
+    def test_it_reports_stock_and_category(self) -> None:
+        catalog = temp_catalog(product_count=40)
+        products = catalog.iter_products()
+        assert all(p.stock_quantity is not None for p in products)
+        assert all(p.category for p in products)
+        assert any(p.stock_quantity == 0 for p in products), "expected some out of stock"
 
 
 def magento(handler: object) -> MagentoCatalog:

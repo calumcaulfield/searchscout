@@ -1,0 +1,21 @@
+{% macro stock_pill(status, quantity) %}
+  {%- if status.value == "out_of_stock" -%}
+    <span class="pill bad">out of stock</span>
+  {%- elif status.value == "low_stock" -%}
+    <span class="pill warn">low stock{% if quantity is not none %} · {{ quantity }}{% endif %}</span>
+  {%- elif status.value == "in_stock" -%}
+    <span class="pill ok">in stock{% if quantity is not none %} · {{ quantity }}{% endif %}</span>
+  {%- else -%}
+    <span class="pill idle">unknown</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro issue_pill(issue, labels) %}
+  {%- if issue.value in ("out_of_stock",) -%}
+    <span class="pill bad">{{ labels[issue] }}</span>
+  {%- elif issue.value in ("low_stock", "missing_description") -%}
+    <span class="pill warn">{{ labels[issue] }}</span>
+  {%- else -%}
+    <span class="pill idle">{{ labels[issue] }}</span>
+  {%- endif -%}
+{% endmacro %}

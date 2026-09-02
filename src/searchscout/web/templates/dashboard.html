@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import issue_pill %}
+{% block body %}
+<h1>Catalogue operations</h1>
+<p class="lede">
+  Search and safely update catalogue content across hundreds of products.
+  Find issues before they become manual cleanup work.
+</p>
+
+<div class="cards">
+  <div class="card"><div class="k">Products</div><div class="v">{{ total }}</div>
+    <div class="n">in the catalogue</div></div>
+  <div class="card"><div class="k">Healthy</div><div class="v">{{ healthy }}</div>
+    <div class="n">no issues detected</div></div>
+  <a class="card link" href="/search?stock=low_stock"><div class="k">Low stock</div>
+    <div class="v">{{ counts.low_stock }}</div>
+    <div class="n">at or below {{ low_stock_threshold }}</div></a>
+  <a class="card link" href="/search?stock=out_of_stock"><div class="k">Out of stock</div>
+    <div class="v">{{ counts.out_of_stock }}</div>
+    <div class="n">quantity is zero</div></a>
+</div>
+
+<div class="split">
+  <div class="panel">
+    <h2>Catalogue health</h2>
+    {% if issues %}
+      {% for issue, count in issues %}
+      <div class="warnrow">
+        <span>{{ issue_pill(issue, issue_labels) }}</span>
+        <span>
+          <span class="mono dim">{{ count }}</span>
+          <a href="/search?issue={{ issue.value }}" style="margin-left:12px">View</a>
+        </span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="dim">No issues detected.</p>
+    {% endif %}
+    <p class="faint" style="font-size:11.5px;margin-top:14px">
+      Rules are deterministic: a description is missing when it has no text, short
+      when under the configured length, duplicated when another product's text is
+      identical once markup and spacing are removed.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>Recent activity</h2>
+    {% if recent %}
+      {% for op in recent %}
+      <div class="warnrow" style="display:block">
+        <div class="mono" style="font-size:11.5px;color:var(--faint)">{{ op.at }}</div>
+        <div style="margin:3px 0">
+          {% if op.kind == "rollback" %}Rollback{% else %}Bulk content update{% endif %}
+          — <code class="inline">{{ op.search_term }}</code> →
+          <code class="inline">{{ op.replacement }}</code>
+        </div>
+        <div class="dim" style="font-size:12px">
+          {{ op.verified }}/{{ op.requested }} verified{% if op.failed %},
+          <span style="color:var(--danger)">{{ op.failed }} failed</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      <p style="margin-top:12px"><a href="/activity">All activity →</a></p>
+    {% else %}
+      <p class="dim">No bulk operations yet.</p>
+      <p><a href="/index">Run a bulk update →</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

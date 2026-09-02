@@ -21,7 +21,11 @@ htmlcov/
 *.pem
 *.key
 
-# Generated audit trails and rollback files
+# Generated at runtime: the demo catalogue database, audit trails and
+# rollback files. State, not source.
+data/
+*.db
+*.db-journal
 var/
 content_updates.csv
 

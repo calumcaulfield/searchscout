@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stock_pill, issue_pill %}
+{% block body %}
+<p><a href="/search" class="dim">← Search</a></p>
+<h1>{{ product.name }}</h1>
+<p class="lede mono">{{ product.sku }}</p>
+
+<div class="cards">
+  <div class="card"><div class="k">Stock</div>
+    <div class="v">{{ product.stock_quantity if product.stock_quantity is not none else '—' }}</div>
+    <div class="n">{{ stock_pill(status, None) }}</div></div>
+  <div class="card"><div class="k">Price</div>
+    <div class="v">{% if product.price %}£{{ '%.2f'|format(product.price) }}{% else %}—{% endif %}</div></div>
+  <div class="card"><div class="k">Category</div>
+    <div class="v" style="font-size:18px">{{ product.category or '—' }}</div></div>
+  <div class="card"><div class="k">Updated</div>
+    <div class="v" style="font-size:14px;font-family:var(--mono)">
+      {{ product.updated_at.strftime('%Y-%m-%d %H:%M') if product.updated_at else '—' }}</div></div>
+</div>
+
+{% if issues %}
+<div class="panel" style="margin-bottom:14px">
+  <h2>Issues</h2>
+  {% for i in issues %}{{ issue_pill(i, issue_labels) }} {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Description</h2>
+  {% if product.contents %}
+    <div style="border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px">
+      {{ product.contents|safe }}
+    </div>
+    <details><summary class="dim" style="cursor:pointer;font-size:12.5px">Source</summary>
+      <pre class="mono dim" style="white-space:pre-wrap;font-size:11.5px;margin-top:8px">{{ product.contents }}</pre>
+    </details>
+  {% else %}
+    <p class="dim">This product has no description.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from helpers import temp_catalog
 from searchscout.audit import AuditEntry, AuditLog
-from searchscout.catalog.demo import DemoCatalog
 from searchscout.matching import MatchMode
 from searchscout.planner import apply, plan
 from searchscout.throttle import TokenBucket
@@ -47,7 +47,7 @@ class TestAuditLog:
         assert row["search_term"] == "cotton"
 
     def test_is_written_per_product_so_a_crash_leaves_a_record(self, tmp_path: Path) -> None:
-        catalog = DemoCatalog(product_count=12)
+        catalog = temp_catalog(product_count=12)
         log = AuditLog(tmp_path / "a.csv")
         result = plan(catalog, "cotton", "hemp", match_mode=MatchMode.CASE_INSENSITIVE)
         apply(catalog, result, audit=log, rollback_dir=tmp_path / "r", rate_per_second=1000)

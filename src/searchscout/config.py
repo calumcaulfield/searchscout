@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     rollback_dir: Path = Path("var/rollback")
 
     demo_product_count: int = 200
+    #: Where the demo catalogue lives. It is a real file so that search and
+    #: update reference the same state across HTTP requests.
+    demo_db_path: Path = Path("data/searchscout-demo.db")
+
+    #: Stock at or below this is "low". Configuration, not data — the same
+    #: quantity is a crisis for one product line and normal for another.
+    low_stock_threshold: int = 5
+    #: Descriptions shorter than this many characters of text are flagged.
+    short_description_chars: int = 120
+    #: Minutes a person would spend editing one product by hand. Only used to
+    #: label an explicitly estimated figure; never presented as measured.
+    manual_minutes_per_product: float = 2.0
 
     def require_magento(self) -> None:
         missing = [

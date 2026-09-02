@@ -59,9 +59,13 @@ class SearchHit:
         return sum(hit.matches for hit in self.hits)
 
     @property
-    def primary(self) -> FieldHit:
-        """The hit whose context best explains the match."""
-        return self.hits[0]
+    def primary(self) -> FieldHit | None:
+        """The hit whose context best explains the match, if the term matched.
+
+        None for a plain listing, where no term was searched and there is
+        therefore nothing to explain.
+        """
+        return self.hits[0] if self.hits else None
 
     @property
     def fields(self) -> tuple[SearchField, ...]:
@@ -99,6 +103,16 @@ def search_field(
         return FieldHit(field, matches, _description_context(text, term, mode))
 
     raise ValueError(f"cannot search field {field!r}")
+
+
+def listing(products: list[Product]) -> list[SearchHit]:
+    """Every product as a hit with no matched field.
+
+    A filter with no search term is a legitimate question — "show me
+    everything out of stock" — and answering it should not require inventing a
+    term. Returning the same shape as a search keeps the results view single.
+    """
+    return [SearchHit(product=product, hits=()) for product in products]
 
 
 def search_products(

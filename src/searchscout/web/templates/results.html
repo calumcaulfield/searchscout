@@ -1,31 +1,65 @@
 {% extends "base.html" %}
+{% from "_macros.html" import stock_pill, issue_pill %}
 {% block body %}
-<h1>{{ total }} product{{ '' if total == 1 else 's' }} match “{{ term }}”</h1>
+<h1>{{ total }} product{{ '' if total == 1 else 's' }}{% if term %} match “{{ term }}”{% endif %}</h1>
 <p class="lede">
-  Searched <span class="mono">{{ field.replace('_', ' ') }}</span>
-  with <span class="mono">{{ mode }}</span>. Read-only — nothing has changed.
+  {% if term %}Searched <span class="mono">{{ field }}</span> with <span class="mono">{{ mode }}</span>.{% endif %}
+  Read-only — nothing has changed.
 </p>
+
+<form class="panel toolbar" method="get" action="/search">
+  <label class="grow"><span style="display:block;font-size:12px;color:var(--faint);margin-bottom:4px">Term</span>
+    <input name="term" value="{{ term }}" placeholder="name, SKU or description"></label>
+  <label><span style="display:block;font-size:12px;color:var(--faint);margin-bottom:4px">In</span>
+    <select name="field">
+      {% for v in ["all","name","description","sku"] %}
+      <option value="{{ v }}" {% if field==v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select></label>
+  <label><span style="display:block;font-size:12px;color:var(--faint);margin-bottom:4px">Match</span>
+    <select name="mode">
+      {% for v in ["case-insensitive","literal","whole-word"] %}
+      <option value="{{ v }}" {% if mode==v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select></label>
+  <label><span style="display:block;font-size:12px;color:var(--faint);margin-bottom:4px">Stock</span>
+    <select name="stock">
+      <option value="">all</option>
+      {% for v in ["in_stock","low_stock","out_of_stock"] %}
+      <option value="{{ v }}" {% if stock==v %}selected{% endif %}>{{ v.replace('_',' ') }}</option>{% endfor %}
+    </select></label>
+  <label><span style="display:block;font-size:12px;color:var(--faint);margin-bottom:4px">Issue</span>
+    <select name="issue">
+      <option value="">any</option>
+      {% for v in ["missing_description","short_description","duplicate_content"] %}
+      <option value="{{ v }}" {% if issue==v %}selected{% endif %}>{{ v.replace('_',' ') }}</option>{% endfor %}
+    </select></label>
+  <button type="submit">Apply</button>
+</form>
+
 <div class="panel" style="padding:0">
   <table>
-    <thead>
-      <tr><th>SKU</th><th>Product</th><th>Matched in</th><th>Matches</th><th>Context</th></tr>
-    </thead>
+    <thead><tr>
+      <th>SKU</th><th>Product</th><th>Category</th><th>Stock</th><th>Price</th>
+      {% if term %}<th>Matched in</th><th>Matches</th>{% endif %}
+      <th>Issues</th><th>Context</th>
+    </tr></thead>
     <tbody>
       {% for row in rows %}
       <tr>
-        <td class="mono">{{ row.sku }}</td>
+        <td class="mono"><a href="/product/{{ row.sku }}">{{ row.sku }}</a></td>
         <td>{{ row.name }}</td>
-        <td>
-          {# Which field produced the context beside it, so the row explains
-             itself rather than leaving the reader to guess. #}
-          <span class="chip">{{ row.matched_in }}</span>
-          {% for extra in row.also %}<span class="chip">{{ extra }}</span>{% endfor %}
-        </td>
+        <td class="dim">{{ row.category }}</td>
+        <td>{{ stock_pill(row.status, row.stock) }}</td>
+        <td class="mono dim">{% if row.price %}£{{ '%.2f'|format(row.price) }}{% else %}—{% endif %}</td>
+        {% if term %}
+        <td>{% if row.matched_in %}<span class="chip">{{ row.matched_in }}</span>{% endif %}</td>
         <td class="mono dim">{{ row.matches }}</td>
-        <td class="dim">{{ row.context[:110] }}</td>
+        {% endif %}
+        <td>{% for i in row.issues %}{{ issue_pill(i, issue_labels) }} {% endfor %}</td>
+        <td class="dim">{{ row.context[:80] }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="faint" style="padding:26px;text-align:center">No matches.</td></tr>
+      <tr><td colspan="9" class="faint" style="padding:30px;text-align:center">
+        No products match. Try a wider scope or clear the filters.</td></tr>
       {% endfor %}
     </tbody>
   </table>

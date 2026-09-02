@@ -58,7 +58,7 @@ def search(
             hit.product.name,
             ", ".join(f.value for f in hit.fields),
             str(hit.matches),
-            hit.primary.context[:80],
+            hit.primary.context[:80] if hit.primary else "",
         )
 
     console.print(table)

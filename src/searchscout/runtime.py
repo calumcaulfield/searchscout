@@ -10,7 +10,7 @@ from searchscout.config import Settings, get_settings
 def build_catalog(settings: Settings | None = None) -> CatalogAdapter:
     settings = settings or get_settings()
     if settings.adapter == "demo":
-        return DemoCatalog(product_count=settings.demo_product_count)
+        return DemoCatalog(settings.demo_db_path, product_count=settings.demo_product_count)
     if settings.adapter == "magento":
         settings.require_magento()
         # Imported lazily so a missing credential degrades this adapter alone —

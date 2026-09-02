@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Reset the demo catalogue?</h1>
+<div class="notice warn" style="margin-bottom:14px">
+  This regenerates the deterministic synthetic catalogue and clears the activity
+  log. Any bulk updates you have made will be discarded. This action exists only
+  in demo mode.
+</div>
+<form method="post">
+  <button class="primary" type="submit">Reset demo catalogue</button>
+  <a href="/" style="margin-left:12px" class="faint">Cancel</a>
+</form>
+{% endblock %}

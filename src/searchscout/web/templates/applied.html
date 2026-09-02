@@ -1,27 +1,64 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>Applied plan {{ report.plan_id }}</h1>
+{% set clean = report.failed|length == 0 %}
+<h1>{% if clean %}Update complete{% else %}Update finished with failures{% endif %}</h1>
 <p class="lede">
-  <b>{{ report.updated|length }}</b> products updated{% if report.failed %},
-  <b style="color:var(--danger)">{{ report.failed|length }}</b> failed{% endif %}.
+  <code class="inline">{{ plan.search_term }}</code> →
+  <code class="inline">{{ plan.replacement }}</code>
 </p>
-{% if report.rollback_path %}
-<div class="notice">
-  Every change was recorded. To undo it:
-  <code class="mono">scout rollback {{ report.rollback_path }}</code>
+
+<div class="cards">
+  <div class="card"><div class="k">Requested</div><div class="v">{{ report.requested|length }}</div>
+    <div class="n">products in the plan</div></div>
+  <div class="card"><div class="k">Written</div><div class="v">{{ report.written|length }}</div>
+    <div class="n">accepted by the catalogue</div></div>
+  <div class="card"><div class="k">Verified</div>
+    <div class="v" style="color:var(--ok)">{{ report.verified|length }}</div>
+    <div class="n">read back and confirmed</div></div>
+  <div class="card"><div class="k">Failed</div>
+    <div class="v" {% if report.failed %}style="color:var(--danger)"{% endif %}>{{ report.failed|length }}</div>
+    <div class="n">not confirmed</div></div>
 </div>
-{% endif %}
-{% if report.failed %}
-<div class="panel" style="padding:0">
+
+{% if clean %}
+<div class="notice" style="border-color:rgba(110,231,168,.2);background:rgba(110,231,168,.06);
+     color:#bfe8d2;margin-bottom:14px">
+  {{ report.replacements }} text replacements across {{ report.verified|length }} products.
+  <strong>Manual edits avoided: {{ report.verified|length }}</strong> —
+  each of these would otherwise have been opened, edited and saved by hand.
+  {% if minutes_each %}
+  <div class="faint" style="margin-top:6px;font-size:11.5px">
+    At an assumed {{ minutes_each }} minutes per product that is roughly
+    {{ (report.verified|length * minutes_each)|round|int }} minutes — an estimate
+    from a configurable assumption, not a measurement.
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="notice warn" style="margin-bottom:14px">
+  Only {{ report.verified|length }} of {{ report.requested|length }} products could be
+  verified. A write the catalogue accepted is not reported as success unless reading
+  it back confirms the stored content.
+</div>
+<div class="panel" style="padding:0;margin-bottom:14px">
   <table>
-    <thead><tr><th>SKU</th><th>Error</th></tr></thead>
+    <thead><tr><th>SKU</th><th>Reason</th></tr></thead>
     <tbody>
-      {% for sku, error in report.failed %}
-      <tr><td class="mono">{{ sku }}</td><td class="dim">{{ error }}</td></tr>
+      {% for sku, reason in report.failed %}
+      <tr><td class="mono">{{ sku }}</td><td class="dim">{{ reason }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% endif %}
-<p><a href="/">Start another search</a></p>
+
+<div class="panel">
+  <h2>Next</h2>
+  <p><a href="/search?term={{ plan.replacement|urlencode }}&field=description">
+    Search for the replacement →</a></p>
+  <p><a href="/activity">View the audit record →</a></p>
+  {% if report.rollback_path %}
+  <p><a href="/rollback/{{ report.plan_id }}">Roll this back →</a></p>
+  {% endif %}
+</div>
 {% endblock %}

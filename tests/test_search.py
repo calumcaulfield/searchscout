@@ -10,15 +10,15 @@ from __future__ import annotations
 
 import pytest
 
+from helpers import assert_unchanged, snapshot, temp_catalog
 from searchscout.catalog.base import Product
-from searchscout.catalog.demo import DemoCatalog
 from searchscout.matching import MatchMode
 from searchscout.search import SearchField, search_products
 
 
 @pytest.fixture
 def products() -> list[Product]:
-    return DemoCatalog(product_count=40).iter_products()
+    return temp_catalog(product_count=40).iter_products()
 
 
 def skus(hits) -> set[str]:  # type: ignore[no-untyped-def]
@@ -148,7 +148,8 @@ class TestMatchModes:
 
 class TestSearchIsReadOnly:
     def test_searching_writes_nothing(self, products: list[Product]) -> None:
-        catalog = DemoCatalog(product_count=10)
+        catalog = temp_catalog(product_count=10)
+        before = snapshot(catalog)
         for field in SearchField:
             search_products(catalog.iter_products(), "cotton", field=field)
-        assert catalog.writes == []
+        assert_unchanged(catalog, before)

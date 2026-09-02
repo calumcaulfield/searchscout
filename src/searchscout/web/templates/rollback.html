@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Roll back this update?</h1>
+<p class="lede">
+  <code class="inline">{{ operation.search_term }}</code> →
+  <code class="inline">{{ operation.replacement }}</code>,
+  {{ operation.verified }} products verified on {{ operation.at.replace('T',' ')[:16] }}.
+</p>
+<div class="notice warn" style="margin-bottom:14px">
+  This restores each product's previous description. Every restore is read back and
+  verified, exactly like a forward update — a rollback that silently did nothing
+  would be worse than the change it was undoing.
+</div>
+<form method="post">
+  <button class="primary" type="submit">Restore {{ operation.verified }} products</button>
+  <a href="/activity" style="margin-left:12px" class="faint">Cancel</a>
+</form>
+{% endblock %}

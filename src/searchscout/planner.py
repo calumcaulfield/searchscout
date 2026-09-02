@@ -55,14 +55,34 @@ class Plan:
 
 @dataclass
 class ApplyReport:
+    """What an apply actually achieved, at each stage.
+
+    The four counts are separate on purpose. A write that the backend accepted
+    is not the same as a write that is stored: the previous version reported
+    "32 products updated" whenever `update_contents` returned without raising,
+    which was true even when the change went nowhere. `verified` is the only
+    number a user should be shown as a success.
+    """
+
     plan_id: str
-    updated: list[str] = field(default_factory=list)
+    #: SKUs the plan asked to change.
+    requested: list[str] = field(default_factory=list)
+    #: The adapter accepted the write without raising.
+    written: list[str] = field(default_factory=list)
+    #: Read back afterwards and confirmed to hold the planned content.
+    verified: list[str] = field(default_factory=list)
     failed: list[tuple[str, str]] = field(default_factory=list)
+    replacements: int = 0
     rollback_path: Path | None = None
 
     @property
     def ok(self) -> bool:
         return not self.failed
+
+    @property
+    def updated(self) -> list[str]:
+        """Kept for callers that predate the staged counts. Verified only."""
+        return self.verified
 
 
 def plan(
@@ -120,6 +140,7 @@ def apply(
     rollback_dir: Path,
     rate_per_second: float = 4.0,
     max_products: int = 500,
+    only_skus: set[str] | None = None,
 ) -> ApplyReport:
     """Write the plan. Every write is audited before the next one is attempted.
 
@@ -137,13 +158,44 @@ def apply(
     bucket = TokenBucket(rate_per_second=rate_per_second)
     entries: list[AuditEntry] = []
 
-    for change in plan_to_apply.changes:
+    # The operator may have deselected rows in the preview. Filtering here, from
+    # the plan the server computed, means the form cannot introduce a SKU that
+    # was never planned.
+    changes = [
+        change for change in plan_to_apply.changes if only_skus is None or change.sku in only_skus
+    ]
+
+    for change in changes:
         bucket.acquire()
+        report.requested.append(change.sku)
         try:
             catalog.update_contents(change.sku, change.after)
         except CatalogError as exc:
             report.failed.append((change.sku, str(exc)))
             continue
+        report.written.append(change.sku)
+
+        # Read it back. A write the adapter accepted is not proof the store
+        # holds it: the demo catalogue used to accept writes into an object
+        # that was about to be discarded, and nothing raised. Only a fresh
+        # read can tell the difference, and only a match counts as success.
+        try:
+            fresh = catalog.get_product(change.sku)
+        except CatalogError as exc:
+            report.failed.append((change.sku, f"could not re-read after write: {exc}"))
+            continue
+
+        if fresh.contents != change.after:
+            report.failed.append(
+                (
+                    change.sku,
+                    "write was accepted but the stored content does not match the plan",
+                )
+            )
+            continue
+
+        report.verified.append(change.sku)
+        report.replacements += change.replacements
 
         entry = AuditEntry(
             plan_id=plan_to_apply.id,
@@ -160,7 +212,6 @@ def apply(
         # Written per product, not batched at the end: a crash halfway through
         # must still leave a record of what was already changed.
         audit.append([entry])
-        report.updated.append(change.sku)
 
     if entries:
         report.rollback_path = audit.write_rollback(plan_to_apply.id, entries, rollback_dir)
@@ -173,9 +224,24 @@ def rollback(catalog: CatalogAdapter, audit: AuditLog, path: Path) -> ApplyRepor
     bucket = TokenBucket(rate_per_second=4.0)
     for sku, contents in audit.read_rollback(path):
         bucket.acquire()
+        report.requested.append(sku)
         try:
             catalog.update_contents(sku, contents)
-            report.updated.append(sku)
         except CatalogError as exc:
             report.failed.append((sku, str(exc)))
+            continue
+        report.written.append(sku)
+
+        # Restoring content is a write like any other, so it is verified the
+        # same way. A rollback that silently did nothing would be worse than
+        # the update it was undoing.
+        try:
+            fresh = catalog.get_product(sku)
+        except CatalogError as exc:
+            report.failed.append((sku, f"could not re-read after restore: {exc}"))
+            continue
+        if fresh.contents != contents:
+            report.failed.append((sku, "restore was accepted but the stored content differs"))
+            continue
+        report.verified.append(sku)
     return report

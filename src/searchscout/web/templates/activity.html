@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Activity</h1>
+<p class="lede">Every bulk operation, what it changed, and whether each write was verified.</p>
+<div class="panel" style="padding:0">
+  <table>
+    <thead><tr>
+      <th>When</th><th>Operation</th><th>Change</th>
+      <th>Requested</th><th>Written</th><th>Verified</th><th>Failed</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for op in operations %}
+      <tr>
+        <td class="mono dim">{{ op.at.replace('T',' ')[:16] }}</td>
+        <td>{% if op.kind == "rollback" %}Rollback{% else %}Bulk update{% endif %}</td>
+        <td><code class="inline">{{ op.search_term }}</code> →
+            <code class="inline">{{ op.replacement }}</code></td>
+        <td class="mono">{{ op.requested }}</td>
+        <td class="mono">{{ op.written }}</td>
+        <td class="mono" style="color:var(--ok)">{{ op.verified }}</td>
+        <td class="mono" {% if op.failed %}style="color:var(--danger)"{% endif %}>{{ op.failed }}</td>
+        <td>{% if op.can_roll_back %}<a href="/rollback/{{ op.plan_id }}">Rollback</a>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="faint" style="padding:30px;text-align:center">
+        No operations recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

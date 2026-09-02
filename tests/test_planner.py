@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
+from helpers import assert_unchanged, snapshot, temp_catalog
 from searchscout.audit import AuditLog
-from searchscout.catalog.base import CatalogError, Product
+from searchscout.catalog.base import CatalogError
 from searchscout.catalog.demo import DemoCatalog
 from searchscout.html_edit import tag_signature
 from searchscout.matching import MatchMode
@@ -21,9 +22,10 @@ from searchscout.planner import apply, plan, rollback
 
 class TestPlanningIsReadOnly:
     def test_planning_writes_nothing(self, catalog: DemoCatalog) -> None:
+        before = snapshot(catalog)
         result = plan(catalog, "cotton", "hemp", match_mode=MatchMode.CASE_INSENSITIVE)
         assert result.product_count > 0, "fixture should contain matching products"
-        assert catalog.writes == []
+        assert_unchanged(catalog, before)
 
     def test_an_empty_search_term_is_refused(self, catalog: DemoCatalog) -> None:
         with pytest.raises(ValueError, match="must not be empty"):
@@ -47,9 +49,11 @@ class TestApplyMatchesThePlan:
         )
 
         assert report.ok
-        assert set(report.updated) == set(expected)
-        for sku, contents in catalog.writes:
-            assert contents == expected[sku]
+        assert set(report.verified) == set(expected)
+        # Read back from the catalogue, not from a write log: the point is that
+        # what is *stored* equals what the preview showed.
+        for sku, planned in expected.items():
+            assert catalog.get_product(sku).contents == planned
 
     def test_markup_survives_a_real_apply(
         self, catalog: DemoCatalog, audit: AuditLog, rollback_dir: Path
@@ -90,9 +94,10 @@ class TestApplyMatchesThePlan:
         """A one-character term matches most of a catalogue; something must stop it."""
         result = plan(catalog, "a", "@", match_mode=MatchMode.CASE_INSENSITIVE)
         assert result.product_count > 3
+        before = snapshot(catalog)
         with pytest.raises(CatalogError, match="above the"):
             apply(catalog, result, audit=audit, rollback_dir=rollback_dir, max_products=3)
-        assert catalog.writes == []
+        assert_unchanged(catalog, before)
 
 
 class TestRollback:
@@ -133,31 +138,31 @@ class TestSearchScopeDoesNotWidenEditScope:
     def test_a_term_in_every_field_still_only_edits_the_description(
         self, audit: AuditLog, rollback_dir: Path
     ) -> None:
-        catalog = DemoCatalog(product_count=6)
-        # A product whose name, SKU and description all contain the term.
-        target = catalog.iter_products()[0]
-        catalog._products[target.sku] = Product(
-            sku=target.sku,
-            name="Cotton Basket",
-            contents="<p>Made from cotton.</p>",
-            price=target.price,
+        catalog = temp_catalog(product_count=60)
+        # A real product whose name *and* description both mention the term —
+        # the fixture generates these, so nothing has to be fabricated.
+        target = next(
+            p
+            for p in catalog.iter_products()
+            if "cotton" in p.name.lower() and "cotton" in p.contents.lower()
         )
+        original_name = target.name
 
         result = plan(catalog, "cotton", "hemp", match_mode=MatchMode.CASE_INSENSITIVE)
         apply(catalog, result, audit=audit, rollback_dir=rollback_dir, rate_per_second=1000)
 
         edited = catalog.get_product(target.sku)
-        assert edited.name == "Cotton Basket", "the product name must not be rewritten"
+        assert edited.name == original_name, "the product name must not be rewritten"
         assert edited.sku == target.sku, "the SKU must not be rewritten"
         assert "hemp" in edited.contents, "the description should have been edited"
 
     def test_planning_never_reports_a_name_only_match(self) -> None:
         """A product matching only by name produces no edit, because nothing is editable there."""
-        catalog = DemoCatalog(product_count=3)
-        sku = catalog.iter_products()[0].sku
-        catalog._products[sku] = Product(
-            sku=sku, name="Cotton Basket", contents="<p>Made from linen.</p>"
-        )
+        catalog = temp_catalog(product_count=60)
+        # Name mentions the term; description deliberately does not.
+        target = next(p for p in catalog.iter_products() if "cotton" in p.name.lower())
+        sku = target.sku
+        catalog.update_contents(sku, "<p>Made from linen throughout.</p>")
         result = plan(catalog, "cotton", "hemp", match_mode=MatchMode.CASE_INSENSITIVE)
         assert sku not in {change.sku for change in result.changes}
 

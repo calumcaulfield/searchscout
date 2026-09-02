@@ -2,17 +2,21 @@
 
 # SearchScout
 
-**Catalogue content search and safe bulk editing for e-commerce product descriptions.**
+**Catalogue Operations Console**
 
-Finds a term across thousands of merchandiser-authored HTML descriptions, shows
-exactly what an edit would change, and only then writes it — with an audit trail
-and a one-command rollback.
+SearchScout helps ecommerce teams search, inspect, bulk-update, verify and
+monitor product information across large catalogues. It replaces repetitive
+product-by-product maintenance with reviewed, auditable bulk operations.
 
-[![Tests](https://img.shields.io/badge/tests-89%20passing-2ea043)](tests/)
+[![Tests](https://img.shields.io/badge/tests-149%20passing-2ea043)](tests/)
 [![Types](https://img.shields.io/badge/mypy-strict-4c9aff)](pyproject.toml)
 [![Runs offline](https://img.shields.io/badge/credentials%20required-none-4c9aff)](#running-it)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
+</div>
+
+<div align="center">
+<img src="docs/screenshots/01-dashboard.png" alt="The catalogue operations dashboard" width="880">
 </div>
 
 ---
@@ -53,6 +57,13 @@ disagree with the result.
 its previous content *before the next write is attempted*, and each plan produces
 a rollback file that restores every product it touched.
 
+**What it says it wrote is what it searches afterwards.** A write is not
+reported as success because the catalogue accepted it. Every write is read back
+and compared against the plan, and the result separates *requested*, *written*,
+*verified* and *failed*. An earlier version reported "32 products updated"
+whenever the adapter did not raise — including when the change went nowhere.
+[`docs/BUGFIX_PERSISTENCE.md`](docs/BUGFIX_PERSISTENCE.md) is the write-up.
+
 **Finding a product and editing one have different scopes.** Search reads the
 product name, the SKU and the description, because that is how a merchandiser
 refers to a product — asking for *"Charcoal Cotton Utility Caddy (small)"* should
@@ -62,8 +73,8 @@ be found did not widen what can be written, and
 product's name, SKU *and* description produces an edit to the description alone.
 
 <div align="center">
-<img src="docs/screenshots/03-name-search.png" alt="Searching an exact product name, showing which field matched" width="860">
-<br><em>Each row says which field it matched on, and the context comes from that field.</em>
+<img src="docs/screenshots/04-low-stock.png" alt="Low-stock products, filtered from the whole catalogue" width="860">
+<br><em>Filters and search compose: this is every low-stock product, with its issues and matched field beside it.</em>
 </div>
 
 <div align="center">
@@ -71,11 +82,39 @@ product's name, SKU *and* description produces an edit to the description alone.
 <br><em>The preview a merchandiser sees. Nothing has been written at this point.</em>
 </div>
 
+## What it does
+
+**Dashboard.** Catalogue size, how many products are healthy, and the issues
+worth acting on — each one clickable through to the affected products.
+
+**Catalogue health.** Deterministic rules, not a model: a description is
+missing when it has no text, short when under a configured length, duplicated
+when another product's text is identical once markup and spacing are removed.
+Stock is low at or below a configurable threshold and out when it is zero.
+
+**Search.** By name, SKU, description or all of them, with case-insensitive,
+literal and whole-word matching, filterable by stock status and by content
+issue. A filter with no search term is a legitimate question, so it lists.
+
+**Bulk update.** Find and replace across the catalogue, previewed
+product-by-product with before and after, with individual rows deselectable
+before anything is written.
+
+**Verified apply.** Requested, written, verified and failed, reported
+separately, with the failing SKU and reason when they differ.
+
+**Activity and rollback.** Every operation recorded with its counts; each one
+can be rolled back, and the restore is verified exactly like a forward write.
+
+<div align="center">
+<img src="docs/screenshots/03-verified-apply.png" alt="A verified bulk update" width="820">
+</div>
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-    UI([Flask review UI]) --> PLAN
+    UI([Operations console]) --> PLAN
     CLI([scout CLI]) --> PLAN
 
     PLAN[plan<br/>read-only] --> EDIT[html_edit<br/>text nodes only]
@@ -87,13 +126,24 @@ flowchart LR
     APPLY --> AUDIT[(CSV audit trail<br/>+ rollback file)]
     APPLY --> ADAPTER[CatalogAdapter]
 
+    APPLY --> VERIFY[Fresh read<br/>compare to plan]
+    VERIFY --> ADAPTER
+
     ADAPTER --> MAGENTO[Magento 2 REST]
-    ADAPTER --> DEMO[Demo catalogue<br/>200 synthetic products]
+    ADAPTER --> DEMO[SQLite demo catalogue<br/>200 synthetic products]
+    ADAPTER -.not built.-> OTHER[Shopify, WooCommerce…]
 
     style PLAN fill:#0d1117,stroke:#4c9aff,stroke-width:2px
     style APPLY fill:#0d1117,stroke:#e8c07d,stroke-width:2px
     style AUDIT fill:#0d1117,stroke:#2ea043
+    style VERIFY fill:#0d1117,stroke:#e8c07d,stroke-width:2px
 ```
+
+`CatalogAdapter` has three methods — `iter_products`, `get_product`,
+`update_contents` — and everything above it depends only on those. The demo
+adapter is SQLite; the Magento adapter is REST. **Shopify and WooCommerce are
+not implemented**; the design would allow them to be added as further adapters
+without touching the search, planning, editing or audit code.
 
 `CatalogAdapter` is the seam the original did not have. The editing logic called
 Magento directly, so nothing could be tested and nothing could run without
@@ -206,7 +256,7 @@ make web     # http://localhost:5001
 ```
 
 <div align="center">
-<img src="docs/screenshots/01-search.png" alt="The search and preview form" width="760">
+<img src="docs/screenshots/06-activity.png" alt="The activity log with per-operation verification counts" width="760">
 </div>
 
 Against a real store, set `SCOUT_ADAPTER=magento` with `SCOUT_MAGENTO_BASE_URL`
@@ -220,6 +270,17 @@ make check     # ruff · mypy --strict · pytest
 
 89 tests. The ones worth reading:
 
+- `tests/test_persistence_invariant.py` — the general property: for a range of
+  term/replacement pairs, applying A → B and then searching for B finds the
+  affected products, with every check crossing a request or adapter-instance
+  boundary. One pair uses a value no fixture could generate, so a hit can only
+  come from newly stored data.
+- `tests/test_verification.py` — an adapter that accepts writes and silently
+  discards them is reported as *0 verified, N failed*, never as success.
+- `tests/test_health.py` — the stock and content rules, including that a missing
+  description is not also counted as short.
+- `tests/test_console.py` — stock and health views really contain products
+  satisfying the rule; rollback restores byte-for-byte and is verified.
 - `tests/test_search.py` — an exact product name finds that product, SKU search
   works, description search is unchanged, and `all` finds a match from each field
 - `tests/test_html_edit.py` — the structural invariant, and the case-mismatch

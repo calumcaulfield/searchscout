@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Rollback complete</h1>
+<div class="cards">
+  <div class="card"><div class="k">Requested</div><div class="v">{{ report.requested|length }}</div></div>
+  <div class="card"><div class="k">Restored</div><div class="v">{{ report.written|length }}</div></div>
+  <div class="card"><div class="k">Verified</div>
+    <div class="v" style="color:var(--ok)">{{ report.verified|length }}</div></div>
+  <div class="card"><div class="k">Failed</div>
+    <div class="v" {% if report.failed %}style="color:var(--danger)"{% endif %}>{{ report.failed|length }}</div></div>
+</div>
+{% if report.failed %}
+<div class="panel" style="padding:0">
+  <table><thead><tr><th>SKU</th><th>Reason</th></tr></thead><tbody>
+    {% for sku, reason in report.failed %}
+    <tr><td class="mono">{{ sku }}</td><td class="dim">{{ reason }}</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endif %}
+<p style="margin-top:14px"><a href="/activity">Back to activity →</a></p>
+{% endblock %}

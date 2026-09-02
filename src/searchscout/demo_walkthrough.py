@@ -23,7 +23,10 @@ console = Console()
 
 
 def main() -> int:
-    catalog = DemoCatalog(product_count=200)
+    # A throwaway database, so the walkthrough never disturbs the demo
+    # catalogue the web UI is using.
+    tmp = tempfile.mkdtemp()
+    catalog = DemoCatalog(Path(tmp) / "walkthrough.db", product_count=200)
     console.print(
         Panel(
             f"{len(catalog.iter_products())} synthetic products. "
@@ -46,9 +49,10 @@ def main() -> int:
         b, a = change.fragments[0] if change.fragments else ("", "")
         table.add_row(change.sku, str(change.replacements), f"{b[:38]} → {a[:38]}")
     console.print(table)
+    unchanged = sum(1 for sku, html in before.items() if catalog.get_product(sku).contents == html)
     console.print(
         f"  plan: {result.product_count} products, {result.total_replacements} replacements — "
-        f"[bold]{len(catalog.writes)} writes so far[/bold] ✓"
+        f"[bold]{unchanged}/{len(before)} products still untouched[/bold] ✓"
     )
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -60,7 +64,8 @@ def main() -> int:
             catalog, result, audit=audit, rollback_dir=root / "rollback", rate_per_second=1000
         )
         console.print(
-            f"  applied: {len(report.updated)} products updated, {len(report.failed)} failed ✓"
+            f"  applied: {len(report.requested)} requested, {len(report.written)} written, "
+            f"{len(report.verified)} verified, {len(report.failed)} failed ✓"
         )
 
         # 3. The property that matters: text changed, markup did not.
